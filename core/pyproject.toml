@@ -1,0 +1,16 @@
+[project]
+name = "frapper-core"
+version = "0.1.0"
+description = "Shared schemas and utilities for Frapper services"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pydantic==2.13.5",
+    "requests==2.31.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["frapper_core"]

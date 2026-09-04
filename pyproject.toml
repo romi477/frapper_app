@@ -1,0 +1,12 @@
+[project]
+name = "frapper"
+version = "1.0.0"
+description = "Frapper monorepo workspace root"
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["core", "api", "bot", "listener"]

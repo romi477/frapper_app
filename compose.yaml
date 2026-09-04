@@ -1,0 +1,90 @@
+name: frapper-app-composer
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  api:
+    container_name: frapper-api
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 256m
+    ports:
+      - "127.0.0.1:${FRAPPER_API_PORT:?}:${FRAPPER_API_PORT:?}"
+    logging: *default-logging
+    volumes:
+      - ./frapper.db:/opt/api/frapper.db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['FRAPPER_API_PORT'])\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  redis:
+    container_name: frapper-redis
+    image: redis:7.2.4-alpine
+    hostname: ${REDIS_HOST:?}
+    restart: unless-stopped
+    mem_limit: 32m
+    logging: *default-logging
+    command:
+      - redis-server
+      - --port
+      - "${REDIS_PORT:?}"
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 24mb
+      - --maxmemory-policy
+      - allkeys-lru
+    expose:
+      - "${REDIS_PORT:?}"
+
+  bot:
+    container_name: frapper-bot
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 192m
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./bot/data:/opt/bot/data
+
+  listener:
+    container_name: frapper-listener
+    build:
+      context: .
+      dockerfile: listener/Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 768m
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_started

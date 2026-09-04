@@ -1,0 +1,13 @@
+.git
+.cursor
+.claude
+.devcontainer
+.venv
+logs
+docs
+_frapper.db
+*.session
+bot/data
+.env
+**/__pycache__
+**/*.pyc

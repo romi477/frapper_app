@@ -1,0 +1,18 @@
+[project]
+name = "frapper-listener"
+version = "1.0.0"
+description = "Frapper OCR listener"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "frapper-core",
+    "redis==5.0.4",
+    "pyocr==0.8.5",
+    "pillow==10.3.0",
+    "numpy==1.26.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+frapper-core = { workspace = true }
