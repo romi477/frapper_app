@@ -1,6 +1,6 @@
 [project]
 name = "frapper-listener"
-version = "1.0.0"
+version = "1.0.1"
 description = "Frapper OCR listener"
 requires-python = ">=3.11,<3.12"
 dependencies = [

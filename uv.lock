@@ -117,12 +117,12 @@ wheels = [
 
 [[package]]
 name = "frapper"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "." }
 
 [[package]]
 name = "frapper-api"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "api" }
 dependencies = [
     { name = "fastapi" },
@@ -143,7 +143,7 @@ requires-dist = [
 
 [[package]]
 name = "frapper-bot"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "bot" }
 dependencies = [
     { name = "frapper-core" },
@@ -162,7 +162,7 @@ requires-dist = [
 
 [[package]]
 name = "frapper-core"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "core" }
 dependencies = [
     { name = "pydantic" },
@@ -177,7 +177,7 @@ requires-dist = [
 
 [[package]]
 name = "frapper-listener"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "listener" }
 dependencies = [
     { name = "frapper-core" },

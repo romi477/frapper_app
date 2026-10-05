@@ -17,21 +17,56 @@ def _required_tag(text: str, mask: str) -> str:
     return tag if tag else '-'
 
 
-def _tag_condition(tag: str) -> str:
+def _tag_condition(tag: str) -> tuple[str, str]:
     # Must match lower(target_tag) / lower(translate_tag) in callers.
+    # The tag goes in as the bound `$value` parameter, never into the SQL text:
+    # Pony evaluates any `$expr` it finds in raw SQL as Python.
     tag = tag.lower()
     if tag.endswith('=='):
-        return f"= '{tag[:-2]}'"
+        return '= $value', tag[:-2]
     if len(tag) >= 4:
-        return f"LIKE '%{tag}%'"
-    return f"= '{tag}'"
+        escaped = tag.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        return "LIKE $value ESCAPE '\\'", f'%{escaped}%'
+    return '= $value', tag
+
+
+def _read_by_tag(lang: str, column: str, tag: Optional[str]):
+    entity = get_phrase_entity(lang)
+    table = entity._table_
+
+    value = None
+    if tag:
+        condition, value = _tag_condition(tag)
+        query = f"""
+            SELECT * FROM {table}
+            WHERE active = true AND lower({column}) {condition}
+            """
+    else:
+        # lower() on both sides — raw subquery tag breaks on mixed case → [].
+        query = f"""
+            SELECT * FROM {table}
+            WHERE active = true AND lower({column}) = (
+                SELECT lower({column}) FROM {table}
+                WHERE active = true
+                ORDER BY RANDOM() LIMIT 1
+            )
+        """
+
+    records = entity.select_by_sql(query, globals={}, locals={'value': value})
+    return [x.to_dict() for x in records]
 
 
 @db_session
 def post_phrases(model_list: List[PhraseSchema], lang: str):
     validate_lang(lang)
     entity = get_phrase_entity(lang)
-    records = [entity(**x.model_dump()) for x in model_list]
+    records = []
+    for model in model_list:
+        # Skip phrases already stored (or repeated in this batch): one known phrase
+        # must not reject the other phrases parsed from the same screenshot.
+        if entity.get(target=model.target, target_tag=model.target_tag):
+            continue
+        records.append(entity(**model.model_dump()))
     return [x.to_dict() for x in records]
 
 
@@ -69,54 +104,13 @@ def create_phrase(
 @db_session
 def read_target_tag(lang: str, tag: str = None):
     validate_lang(lang)
-    entity = get_phrase_entity(lang)
-    table = entity._table_
-
-    if tag:
-        condition = _tag_condition(tag)
-        query = f"""
-            SELECT * FROM {table}
-            WHERE active = true AND lower(target_tag) {condition}
-            """
-    else:
-        # lower() on both sides — raw subquery tag breaks on mixed case → [].
-        query = f"""
-            SELECT * FROM {table}
-            WHERE active = true AND lower(target_tag) = (
-                SELECT lower(target_tag) FROM {table}
-                WHERE active = true
-                ORDER BY RANDOM() LIMIT 1
-            )
-        """
-
-    records = entity.select_by_sql(query)
-    return [x.to_dict() for x in records]
+    return _read_by_tag(lang, 'target_tag', tag)
 
 
 @db_session
 def read_translate_tag(lang: str, tag: str = None):
     validate_lang(lang)
-    entity = get_phrase_entity(lang)
-    table = entity._table_
-
-    if tag:
-        condition = _tag_condition(tag)
-        query = f"""
-            SELECT * FROM {table}
-            WHERE active = true AND lower(translate_tag) {condition}
-            """
-    else:
-        query = f"""
-            SELECT * FROM {table}
-            WHERE active = true AND lower(translate_tag) = (
-                SELECT lower(translate_tag) FROM {table}
-                WHERE active = true
-                ORDER BY RANDOM() LIMIT 1
-            )
-        """
-
-    records = entity.select_by_sql(query)
-    return [x.to_dict() for x in records]
+    return _read_by_tag(lang, 'translate_tag', tag)
 
 
 @db_session
@@ -193,11 +187,14 @@ def read_target_from_tail(lang: str, tail: int = 100, count: int = 10):
     table = entity._table_
     records = entity.select_by_sql(
         f"""
-        SELECT *
-        FROM {table}
-        WHERE id > (SELECT COUNT(*) - {tail} FROM {table})
+        SELECT * FROM (
+            SELECT * FROM {table}
+            WHERE active = true
+            ORDER BY id DESC
+            LIMIT {int(tail)}
+        )
         ORDER BY RANDOM()
-        LIMIT {count}
+        LIMIT {int(count)}
         """
     )
     return [x.to_dict() for x in records]
@@ -241,12 +238,12 @@ def update_phrase(
 
 
 @db_session
-def delete_phrase(lang: str, item_id: int):
+def delete_phrase(lang: str, item_id: int) -> bool:
     validate_lang(lang)
     entity = get_phrase_entity(lang)
     record = entity.get(id=item_id)
     if not record:
-        return {'message': 'Record not found'}
+        return False
 
     record.delete()
-    return {'message': 'Record deleted successfully'}
+    return True

@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-_frapper.db
-frapper.db
-api/frapper.db
+data/*
+!data/.gitkeep
+*.db
 docs
 logs
 .superpowers

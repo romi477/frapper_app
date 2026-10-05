@@ -3,8 +3,9 @@ import requests
 
 class FrapperApiClient:
 
-    def __init__(self, base_url, username, password, user_agent='FrapperClient/0.1.0'):
+    def __init__(self, base_url, username, password, user_agent='FrapperClient/0.1.0', timeout=30):
         self.base_url = base_url.rstrip('/')
+        self.timeout = timeout
         self.auth = (username, password)
         self.headers = {
             'Content-Type': 'application/json',
@@ -26,6 +27,7 @@ class FrapperApiClient:
             params={'lang': lang},
             headers=self.headers,
             auth=self.auth,
+            timeout=self.timeout,
         )
 
     def get_phrase_meta(self, lang, message_id, datetime_created):
@@ -38,6 +40,7 @@ class FrapperApiClient:
             },
             headers=self.headers,
             auth=self.auth,
+            timeout=self.timeout,
         )
 
     def post_phrase(self, data, lang):
@@ -47,6 +50,7 @@ class FrapperApiClient:
             params={'lang': lang},
             headers=self.headers,
             auth=self.auth,
+            timeout=self.timeout,
         )
 
     def get_phrase(self, path, lang, params=None):
@@ -57,6 +61,7 @@ class FrapperApiClient:
             params=query,
             headers=self.headers,
             auth=self.auth,
+            timeout=self.timeout,
         )
 
     def delete_phrase(self, item_id, lang):
@@ -65,4 +70,5 @@ class FrapperApiClient:
             params={'lang': lang},
             headers=self.headers,
             auth=self.auth,
+            timeout=self.timeout,
         )

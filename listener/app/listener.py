@@ -5,7 +5,8 @@ import logging
 import sys
 from time import sleep, monotonic
 
-from redis import Redis
+import requests
+from redis import Redis, RedisError
 
 from frapper_core import FrapperApiClient, api_base_url, parse_redis_key
 from app.frapper import ImageFrapper
@@ -40,6 +41,14 @@ def sorted_redis_keys(client) -> list[str]:
     return sorted(keys, key=sort_key)
 
 
+def park_key(client, complex_key: str) -> None:
+    # MOVE is a no-op when DB 1 already holds the key, so copy over it instead.
+    with client.pipeline() as pipe:
+        pipe.copy(complex_key, complex_key, destination_db=1, replace=True)
+        pipe.delete(complex_key)
+        pipe.execute()
+
+
 def process_redis_key(client, complex_key: str, run_log: FixtureRunLog | None = None) -> None:
     log.info(complex_key)
     lang, message_id, message_date = parse_redis_key(complex_key)
@@ -57,7 +66,7 @@ def process_redis_key(client, complex_key: str, run_log: FixtureRunLog | None = 
                 f'process {complex_key} failed: meta lookup HTTP {meta_response.status_code}'
             )
             run_log.record_failed(complex_key, f'meta lookup HTTP {meta_response.status_code}')
-        client.move(complex_key, 1)
+        park_key(client, complex_key)
         return
 
     meta_id = meta_response.json()['id']
@@ -78,7 +87,7 @@ def process_redis_key(client, complex_key: str, run_log: FixtureRunLog | None = 
         if run_log:
             run_log.iteration(f'process {complex_key} missed (moved to DB 1)')
             run_log.record_failed(complex_key, 'ocr parse missed')
-        client.move(complex_key, 1)
+        park_key(client, complex_key)
         return
 
     data = [x.to_dict() for x in record_list_valid]
@@ -94,7 +103,7 @@ def process_redis_key(client, complex_key: str, run_log: FixtureRunLog | None = 
                 f'process {complex_key} failed: POST phrase HTTP {response.status_code}'
             )
             run_log.record_failed(complex_key, f'POST phrase HTTP {response.status_code}')
-        client.move(complex_key, 1)
+        park_key(client, complex_key)
         return
 
     log.info(response.json())
@@ -103,10 +112,37 @@ def process_redis_key(client, complex_key: str, run_log: FixtureRunLog | None = 
     client.delete(complex_key)
 
 
+def process_redis_key_safely(client, complex_key: str, run_log: FixtureRunLog | None = None) -> bool:
+    """Process one key; return False when the API is unreachable (stop the pass, retry later)."""
+    try:
+        process_redis_key(client, complex_key, run_log=run_log)
+    except (requests.ConnectionError, requests.Timeout) as exc:
+        log.error('API unreachable while processing %s, will retry: %s', complex_key, exc)
+        return False
+    except RedisError:
+        raise
+    except Exception:
+        # Park the key so one bad image cannot crash-loop the worker and stall the queue.
+        log.exception('Failed to process %s. Bin data moved to DB=1', complex_key)
+        if run_log:
+            run_log.iteration(f'process {complex_key} failed: unexpected error (moved to DB 1)')
+            run_log.record_failed(complex_key, 'unexpected error')
+        park_key(client, complex_key)
+    return True
+
+
 def read_redis_db(client, run_log: FixtureRunLog | None = None):
 
     for complex_key in client.scan_iter():
-        process_redis_key(client, complex_key.decode(), run_log=run_log)
+        if not process_redis_key_safely(client, complex_key.decode(), run_log=run_log):
+            break
+
+
+def poll_once(client) -> None:
+    try:
+        read_redis_db(client)
+    except RedisError as exc:
+        log.error('Redis unavailable: %s', exc)
 
 
 def run_fixture_mode(
@@ -144,7 +180,13 @@ def run_fixture_mode(
                 run_log.record_pending(remaining)
                 run_log.close('timed out with pending Redis keys')
             return 1
-        process_redis_key(client, complex_key, run_log=run_log)
+        if not process_redis_key_safely(client, complex_key, run_log=run_log):
+            remaining = pending_keys[index:]
+            log.error('API unreachable with %d pending Redis key(s)', len(remaining))
+            if run_log:
+                run_log.record_pending(remaining)
+                run_log.close('API unreachable with pending Redis keys')
+            return 1
 
     log.info('Fixture mode complete: %s', stats)
     if run_log:
@@ -195,11 +237,10 @@ if __name__ == '__main__':
             redis_client.close()
             raise
     else:
-        while True:
-            try:
-                read_redis_db(redis_client)
-            except KeyboardInterrupt:
-                redis_client.close()
-                raise
-            else:
+        try:
+            while True:
+                poll_once(redis_client)
                 sleep(5)
+        except KeyboardInterrupt:
+            redis_client.close()
+            raise

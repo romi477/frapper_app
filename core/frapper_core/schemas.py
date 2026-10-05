@@ -3,16 +3,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 
-class ItemMixin:
-
-    @classmethod
-    def post_keys_cls(cls):
-        return tuple(cls.model_fields.keys())[1:-1]
-
-    def post_data(self):
-        return self.model_dump(exclude={'id', 'created_at'})
-
-
 class PhraseMetaCreate(BaseModel):
 
     message_id: int
@@ -20,9 +10,7 @@ class PhraseMetaCreate(BaseModel):
     with_error: bool = False
 
 
-class PhraseMetaResponse(PhraseMetaCreate, ItemMixin):
-
-    _table_name = 'phrase_meta'
+class PhraseMetaResponse(PhraseMetaCreate):
 
     id: int
     lang: str
@@ -45,7 +33,7 @@ class PhraseCreate(BaseModel):
     metadata: str
 
 
-class PhraseResponse(PhraseCreate, ItemMixin):
+class PhraseResponse(PhraseCreate):
 
     id: int
     created_at: str

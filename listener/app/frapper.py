@@ -89,12 +89,9 @@ class ImageFrapper:
         for idx, (y1, y2) in enumerate(candidate_filtered, start=1):
             image_x = image.crop((conf.IMAGE_OFFSET_L, y1, width - conf.IMAGE_OFFSET_R, y2))
 
-            kw['size'] = image_x.size
-            kw['y1_y2'] = (y1, y2)
-            kw['threshold'] = list()
-            kw['file_index'] = idx
+            metadata = dict(kw, size=image_x.size, y1_y2=(y1, y2), threshold=list(), file_index=idx)
 
-            record = cls(image_x, metadata=kw)
+            record = cls(image_x, metadata=metadata)
             result.append(record)
 
         return result
@@ -219,7 +216,10 @@ class ImageFrapper:
 
     def _is_tag(self, array, coordinates):
         ((x1, y1), (x2, _)) = coordinates
-        array_slice = array[y1 - conf.TAG_OFFSET][x1:x2]
+        # Clamp: a negative row index would wrap around to the bottom of the image.
+        array_slice = array[max(y1 - conf.TAG_OFFSET, 0)][x1:x2]
+        if not len(array_slice):
+            return False, 0
 
         counter = int()
         for pixel in array_slice:

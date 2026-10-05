@@ -3,6 +3,14 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
+API_ROOT = Path(__file__).resolve().parents[1]
+
+
+def sqlite_filename(path: str) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return str(candidate)
+    return str(API_ROOT / candidate)
 
 
 class Config(BaseSettings):

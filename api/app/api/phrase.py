@@ -129,4 +129,6 @@ def patch_phrase(item_id: int, model: PhraseUpdate, lang: LangQuery):
 
 @router.delete('/{item_id}', dependencies=[Depends(validate_basic)], response_model=dict)
 def delete_phrase(item_id: int, lang: LangQuery):
-    return phrase_service.delete_phrase(lang, item_id)
+    if not phrase_service.delete_phrase(lang, item_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Record not found')
+    return {'message': 'Record deleted successfully'}

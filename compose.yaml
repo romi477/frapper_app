@@ -15,13 +15,19 @@ services:
       dockerfile: api/Dockerfile
     env_file:
       - .env
+    environment:
+      # Required here so Compose stops before the API falls back to a path
+      # outside the mounted data/ directory.
+      SQLITE_DB_PATH: ${SQLITE_DB_PATH:?set SQLITE_DB_PATH inside data/, e.g. data/frapper.db}
     restart: unless-stopped
     mem_limit: 256m
     ports:
       - "127.0.0.1:${FRAPPER_API_PORT:?}:${FRAPPER_API_PORT:?}"
     logging: *default-logging
+    # The directory, not the database file: SQLite writes its -journal file next
+    # to the database, and a missing file source would make Docker create a directory.
     volumes:
-      - ./frapper.db:/opt/api/frapper.db
+      - ./data:/opt/api/data
     healthcheck:
       test:
         [
@@ -40,6 +46,8 @@ services:
     restart: unless-stopped
     mem_limit: 32m
     logging: *default-logging
+    # Redis is the only copy of queued (DB 0) and failed (DB 1) screenshots:
+    # persist it (AOF) and refuse writes when full instead of silently evicting.
     command:
       - redis-server
       - --port
@@ -47,11 +55,13 @@ services:
       - --save
       - ""
       - --appendonly
-      - "no"
+      - "yes"
       - --maxmemory
       - 24mb
       - --maxmemory-policy
-      - allkeys-lru
+      - noeviction
+    volumes:
+      - redis-data:/data
     expose:
       - "${REDIS_PORT:?}"
 
@@ -88,3 +98,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
+volumes:
+  redis-data:

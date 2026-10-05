@@ -5,7 +5,9 @@
 .venv
 logs
 docs
-_frapper.db
+data
+**/*.db
+**/tests
 *.session
 bot/data
 .env

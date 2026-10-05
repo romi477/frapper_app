@@ -17,7 +17,7 @@ You post Reverso-style screenshots into private Telegram channels. Frapper OCRs 
 | `api` | FastAPI + SQLite; only published bind is `127.0.0.1:<FRAPPER_API_PORT>` |
 | `bot` | Telethon ingest + commands |
 | `listener` | Redis worker: OCR with Tesseract, POST phrases |
-| `redis` | Image queue (pending in DB 0; failures moved to DB 1) |
+| `redis` | Image queue (pending in DB 0; failures moved to DB 1; AOF-persisted, `noeviction`) |
 
 Shared code lives in `core/frapper_core/`.
 
@@ -44,18 +44,17 @@ FRAPPER_API_PORT=4040
 FRAPPER_ENABLE_DOCS=false
 REDIS_HOST=redis
 REDIS_PORT=6379
-SQLITE_DB_PATH=frapper.db
+SQLITE_DB_PATH=data/frapper.db
 ```
 
 `FRAPPER_API_HOST` is the Docker DNS name of the API service (not a URL). `FRAPPER_API_PORT` is the one port to change: uvicorn, internal clients, and the localhost publish (`127.0.0.1:<port>`). Host Nginx / TLS should proxy to that loopback port; do not publish `api` or `redis` to `0.0.0.0`.
 
 Also set Telegram API id/hash, bot token, channel ids (`TG_PHRASE_PL_ID`, optional `TG_PHRASE_EN_ID` — short numeric ids, without `-100`), super-user id, and Basic Auth (`FRAPPER_USERNAME` / `FRAPPER_PASSWORD`).
 
-2. Ensure the DB file exists for the bind mount (empty file is fine; API runs `ensure_db` on start):
+2. Create the bind-mounted directories (the API creates `data/frapper.db` via `ensure_db` on first start):
 
 ```bash
-touch _frapper.db
-mkdir -p bot/data
+mkdir -p data bot/data
 ```
 
 3. Start the stack:
@@ -76,7 +75,10 @@ docker compose up --build listener
 docker compose run --rm api python -i app/shell.py
 
 # manual migration
-python3 api/migrate_db.py _frapper.db
+python3 api/migrate_db.py data/frapper.db
+
+# tests (pytest per service via uv)
+./scripts/run-tests.sh
 ```
 
 ## Web UI
@@ -109,7 +111,7 @@ api/          FastAPI app + static SPA (index.html)
 bot/          Telethon bot (`bot/data/` = session)
 listener/     OCR worker
 core/         shared frapper_core package
-_frapper.db   SQLite (bind-mounted; gitignored)
+data/         SQLite database (bind-mounted directory; contents gitignored)
 ```
 
 App logs go to container stdout (`docker compose logs` / `./scripts/docker-logs.sh`); Docker rotates them (`json-file`, 10m × 3).
@@ -117,7 +119,7 @@ Agent-oriented architecture notes live in [`CLAUDE.md`](CLAUDE.md). Release hist
 
 ## Notes
 
-- No tests or CI in this repo.
+- Tests: `./scripts/run-tests.sh`. No CI.
 - On a server, keep `FRAPPER_ENABLE_DOCS=false` and proxy only `127.0.0.1:<FRAPPER_API_PORT>` from host Nginx. Do not publish `api` or `redis` to `0.0.0.0`.
 - OCR geometry is calibrated to Reverso screenshots (`FrapperConfig`); layout changes need re-calibration.
 - Failed Redis jobs sit in DB 1 and are not auto-retried.

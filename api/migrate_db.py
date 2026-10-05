@@ -233,6 +233,16 @@ def migrate_text_en(conn):
     print('text_en: created')
 
 
+def repair_text_en_window_close(conn):
+    # Bodies saved before the find_window_outer_html fix lost the '>' of the root </div>.
+    cursor = conn.execute(
+        "UPDATE text_en SET body = body || '>' "
+        "WHERE body LIKE '<div%' AND substr(body, -5) = '</div'"
+    )
+    if cursor.rowcount:
+        print(f'text_en: restored the closing </div> tag in {cursor.rowcount} body(ies)')
+
+
 def migrate(db_path: Path):
     conn = sqlite3.connect(db_path)
     try:
@@ -241,6 +251,7 @@ def migrate(db_path: Path):
         migrate_phrase_pl(conn)
         migrate_phrase_en(conn)
         migrate_text_en(conn)
+        repair_text_en_window_close(conn)
         drop_phrase_meta_state(conn)
         conn.commit()
     finally:
@@ -270,6 +281,11 @@ def create_empty_db(db_path: Path) -> None:
 
 def ensure_db(db_path: Path) -> str:
     db_path = db_path.resolve()
+    if db_path.is_dir():
+        raise IsADirectoryError(
+            f'{db_path} is a directory, not a SQLite file '
+            '(Docker creates a directory when a bind-mount source file is missing)'
+        )
     if db_needs_init(db_path):
         create_empty_db(db_path)
         print(f'Created empty database: {db_path}')
@@ -285,7 +301,7 @@ if __name__ == '__main__':
     if init_mode:
         args.remove('--init')
 
-    path = Path(args[0] if args else 'frapper.db').resolve()
+    path = Path(args[0] if args else 'data/frapper.db').resolve()
     if init_mode:
         status = ensure_db(path)
         print(f'Database ready ({status}): {path}')

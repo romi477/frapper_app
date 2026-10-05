@@ -15,7 +15,6 @@ class Config(BaseSettings):
     frapper_username: str
     frapper_password: str
 
-    tg_frapper_id: int
     tg_phrase_pl_id: int
     tg_phrase_en_id: Optional[int] = None
     tg_api_id: int

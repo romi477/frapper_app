@@ -1,10 +1,12 @@
 # python3
 
+import asyncio
 import logging
 import sys
 from datetime import datetime
 
-from redis import Redis
+import requests
+from redis import Redis, RedisError
 
 from telethon.sync import TelegramClient, events
 from telethon.tl.types import MessageMediaPhoto
@@ -23,8 +25,8 @@ from app.config import config
 
 
 FETCH_COUNT_RE = r'/c(\s+\d+)?$'
-FETCH_SLICE_RE = r'/s\s+(\d+)\s+(\d+)'
-FETCH_TAIL_RE = r'/l(\s+(\d+)\s+(\d+))?'
+FETCH_SLICE_RE = r'/s\s+(\d+)\s+(\d+)$'
+FETCH_TAIL_RE = r'/l(?:\s+(\d+))?(?:\s+(\d+))?$'
 FETCH_TARGET_TAG_RE = r'/f(\s.*)?$'
 FETCH_TRANSLATE_TAG_RE = r'/t(\s.*)?$'
 DELETE_BY_ID = r'/d\s+(\d+)$'
@@ -82,7 +84,12 @@ async def handler_new_message_phrase(event):
         'datetime_created': (message_date := message.date.strftime(DATETIME_FORMAT)),
     }
 
-    response = api_client.post_phrase_meta(data, lang=lang)
+    try:
+        response = await asyncio.to_thread(api_client.post_phrase_meta, data, lang=lang)
+    except requests.RequestException as exc:
+        _logger.error('POST META failed: %s', exc)
+        await event.respond(f'POST META: {exc.__class__.__name__}')
+        return False
 
     if not response.ok:
         _logger.error(response.text)
@@ -90,11 +97,16 @@ async def handler_new_message_phrase(event):
         return False
 
     redis_key = prepare_redis_key(lang, message_id, message_date)
+    binary_data = await event.download_media(file=bytes)
+
+    try:
+        await asyncio.to_thread(redis_client.set, redis_key, binary_data)
+    except RedisError as exc:
+        _logger.error('Redis SET failed for %s: %s', redis_key, exc)
+        await event.respond(f'REDIS: {exc.__class__.__name__}, re-post the picture later')
+        return False
 
     _logger.info('Redis key added: %s', redis_key)
-
-    binary_data = await event.download_media(file=bytes)
-    redis_client.set(redis_key, binary_data)
 
     return True
 
@@ -128,13 +140,14 @@ async def handler_fetch_slice_pl(event):
 @bot.on(events.NewMessage(pattern=FETCH_TAIL_RE))
 @add_log
 async def handler_fetch_tail_pl(event):
-    args = event.message.message.replace('/l', '').strip().split()
+    args = [int(arg) for arg in event.message.message.split()[1:]]
+    params = dict(zip(('tail', 'count'), args))
 
     return await _perform_request(
         event,
         'pl',
         'fetch-tail',
-        params={'tail': int(args[0]), 'count': int(args[1])} if args else None,
+        params=params or None,
     )
 
 
@@ -172,8 +185,13 @@ async def handler_delete_record_by_id(event):
 
     args = event.message.message.replace('/d', '').strip().split()
 
-    response = api_client.delete_phrase(args[0], lang='pl')
+    try:
+        response = await asyncio.to_thread(api_client.delete_phrase, args[0], lang='pl')
+    except requests.RequestException:
+        return await event.reply(f'Server Error {Emoji.JACK_O_LANTERM}')
 
+    if response.status_code == 404:
+        return await event.reply(f'Not Found {Emoji.CONFUSED_FACE}')
     if not response.ok:
         return await event.reply(f'Server Error {Emoji.JACK_O_LANTERM}')
 
@@ -187,7 +205,10 @@ async def handler_client_start_pl(event):
 
 
 async def _perform_request(event, lang, path, params=None):
-    response = api_client.get_phrase(path, params=params, lang=lang)
+    try:
+        response = await asyncio.to_thread(api_client.get_phrase, path, params=params, lang=lang)
+    except requests.RequestException:
+        return await event.reply(f'Server Error {Emoji.JACK_O_LANTERM}')
 
     if not response.ok:
         return await event.reply(f'Server Error {Emoji.JACK_O_LANTERM}')

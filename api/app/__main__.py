@@ -6,8 +6,7 @@ import uvicorn
 
 from migrate_db import ensure_db
 
-from app.config import config
-from app.db.database import sqlite_filename
+from app.config import config, sqlite_filename
 
 
 logging.basicConfig(

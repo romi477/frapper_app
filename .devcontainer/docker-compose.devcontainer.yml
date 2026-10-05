@@ -1,6 +1,5 @@
-# Used only when opening this folder in Dev Containers (merged with ../docker-compose.yml).
+# Used only when opening this folder in Dev Containers (merged with ../compose.yaml).
 # Keeps the `api` container alive for the IDE to attach to, bypassing the app CMD.
-# Uses `sleep infinity` (no shell) so it works on the Alpine-based api image, which has no bash.
 services:
   api:
     entrypoint: ["sleep", "infinity"]

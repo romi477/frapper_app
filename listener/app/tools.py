@@ -13,18 +13,12 @@ conf = FrapperConfig
 
 
 def parse_image_boxes(image, convert_to_gray=False):
-    print("==================")
-    print(image)
-
     if convert_to_gray:
         image = to_gray(image)
     return tesseract.image_to_string(image, lang=conf.TARGET_LANG, builder=WordBoxBuilder())
 
 
 def parse_text(image, convert_to_gray=False):
-    print("++++++++++++++++++++++++")
-    print(image)
-
     if convert_to_gray:
         image = to_gray(image)
     text = tesseract.image_to_string(image, lang=conf.TARGET_LANG, builder=TextBuilder())

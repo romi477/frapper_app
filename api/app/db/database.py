@@ -1,17 +1,6 @@
-from pathlib import Path
-
 from pony.orm import Database
 
-from app.config import config
-
-API_ROOT = Path(__file__).resolve().parents[2]
-
-
-def sqlite_filename(path: str) -> str:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        return str(candidate)
-    return str(API_ROOT / candidate)
+from app.config import config, sqlite_filename
 
 
 db = Database()

@@ -27,7 +27,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = REPO_ROOT / 'logs'
-HOST_DB_PATH = REPO_ROOT / '_frapper.db'
+HOST_DB_PATH = REPO_ROOT / 'data' / 'frapper.db'
 HEALTH_TIMEOUT_SEC = 90
 FIXTURE_IDLE_TIMEOUT_SEC = 300
 FIXTURE_SEC_PER_IMAGE = 3

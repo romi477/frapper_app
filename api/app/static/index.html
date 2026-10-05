@@ -1862,7 +1862,7 @@
         <button type="button" class="chrome-link" id="lang-toggle-btn" title="Switch to English">PL → EN</button>
         <div class="brand">
           <span class="brand-title">
-            <a class="app-version" href="/docs" target="_blank" rel="noopener noreferrer" title="Open API docs (Swagger)">v1.0.0</a>
+            <a class="app-version" href="/docs" target="_blank" rel="noopener noreferrer" title="Open API docs (Swagger)">v1.0.1</a>
             <h1>
               <a class="brand-name" href="https://github.com/romi477/frapper_app" target="_blank" rel="noopener noreferrer" title="Open GitHub repository">FRAPPER</a>
             </h1>
@@ -2402,7 +2402,7 @@
   let datePrefetchTimer = null;
 
   function todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+    return formatIsoDate(new Date());
   }
 
   function formatIsoDate(date) {
@@ -3706,12 +3706,57 @@
     return looksLikeHtml(body) && Boolean(extractWindowDivHtml(body));
   }
 
+  // Mirrors sanitize_html() in app/services/text_body.py: keep the server and client in sync.
+  const STORY_ALLOWED_TAGS = new Set([
+    'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'hr', 'i', 'li', 'mark', 'ol', 'p', 'pre', 'small', 'span', 'strong', 'sub', 'sup',
+    'table', 'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul',
+  ]);
+  const STORY_DROPPED_WITH_CONTENT = new Set([
+    'applet', 'frameset', 'head', 'iframe', 'math', 'noembed', 'noframes', 'noscript',
+    'object', 'script', 'select', 'style', 'svg', 'template', 'textarea', 'title', 'xmp',
+  ]);
+  const STORY_UNSAFE_STYLE = /url\s*\(|expression|javascript\s*:|@import|\\|[<>]/i;
+  const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+
+  function appendSanitizedStoryNodes(source, target) {
+    for (const node of source.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        target.appendChild(document.createTextNode(node.textContent));
+        continue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+      const tag = node.localName;
+      if (STORY_DROPPED_WITH_CONTENT.has(tag)) continue;
+      if (!STORY_ALLOWED_TAGS.has(tag) || node.namespaceURI !== XHTML_NS) {
+        appendSanitizedStoryNodes(node, target);  // unwrap: drop the tag, keep its text
+        continue;
+      }
+
+      const clean = document.createElement(tag);
+      const cls = node.getAttribute('class');
+      if (cls != null) clean.setAttribute('class', cls);
+      const style = node.getAttribute('style');
+      if (style != null && !STORY_UNSAFE_STYLE.test(style)) clean.setAttribute('style', style);
+      appendSanitizedStoryNodes(node, clean);
+      target.appendChild(clean);
+    }
+  }
+
+  function sanitizeStoryHtml(html) {
+    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+    const container = document.createElement('div');
+    appendSanitizedStoryNodes(doc.body, container);
+    return container.innerHTML;
+  }
+
   function makeTextHtmlBody(body) {
     const block = document.createElement('div');
     block.className = 'text-card-html-body';
     const content = body || '';
     if (isTextWindowHtml(content)) {
-      block.innerHTML = content;
+      block.innerHTML = sanitizeStoryHtml(content);
     } else if (content) {
       block.classList.add('text-card-plain-body');
       block.textContent = content;
@@ -3790,7 +3835,7 @@
     if (error) {
       return { error, body: '' };
     }
-    return { body, error: null };
+    return { body: looksLikeHtml(body) ? sanitizeStoryHtml(body) : body, error: null };
   }
 
   async function readApiErrorMessage(response, fallback) {
@@ -4463,7 +4508,7 @@
       const response = isText
         ? await fetch(textEnUrl('/' + item.id), { method: 'DELETE' })
         : await fetch(apiUrl('/' + item.id, {}, lang), { method: 'DELETE' });
-      if (response.ok) {
+      if (response.ok || response.status === 404) {
         await transitionDeleteCard(item, card);
         if (!isText) loadPhraseStats();
       } else {
@@ -5091,10 +5136,13 @@
     const mode = MODES[currentMode];
     if (!mode) return;
 
+    // The language can be toggled while the request is in flight; cards must keep the
+    // language they were fetched in (edit/delete send it back as ?lang=).
+    const lang = currentLang;
     const built = mode.build(value);
     if (built.invalid) {
       prependBatch(
-        currentLang.toUpperCase() + ' · ' + mode.label + ' · ' + built.desc + ' · invalid input',
+        lang.toUpperCase() + ' · ' + mode.label + ' · ' + built.desc + ' · invalid input',
         [],
         true,
         queryTab
@@ -5113,23 +5161,23 @@
       const [response] = await Promise.all([fetch(url), sleep(MIN_LOADER_MS)]);
 
       if (!response.ok) {
-        prependBatch(currentLang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · error ' + response.status, [], true, queryTab);
+        prependBatch(lang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · error ' + response.status, [], true, queryTab);
         return;
       }
 
       const data = await response.json();
 
       if (!Array.isArray(data) || data.length === 0) {
-        prependBatch(currentLang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · not found', [], false, queryTab);
+        prependBatch(lang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · not found', [], false, queryTab);
         return;
       }
 
       const n = data.length;
-      const cards = data.map((item, i) => makeCard(item, queryTab.cardSeq + n - i, currentLang));
+      const cards = data.map((item, i) => makeCard(item, queryTab.cardSeq + n - i, lang));
       queryTab.cardSeq += n;
-      prependBatch(currentLang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · ' + n + ' result(s)', cards, false, queryTab);
+      prependBatch(lang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · ' + n + ' result(s)', cards, false, queryTab);
     } catch (err) {
-      prependBatch(currentLang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · network error', [], true, queryTab);
+      prependBatch(lang.toUpperCase() + ' · ' + mode.label + ' · ' + desc + ' · network error', [], true, queryTab);
     } finally {
       queryBusy = false;
       loaderEl.style.display = 'none';

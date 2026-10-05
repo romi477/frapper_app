@@ -1,6 +1,6 @@
 [project]
 name = "frapper-bot"
-version = "1.0.0"
+version = "1.0.1"
 description = "Frapper Telethon bot"
 requires-python = ">=3.11,<3.12"
 dependencies = [
