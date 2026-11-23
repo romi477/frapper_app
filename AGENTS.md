@@ -148,11 +148,12 @@ Single-page UI at `GET /web` (Basic Auth). `GET /` redirects here. All logic is 
 #### Shell and chrome
 
 - Outer page background `#e6e8ed`; main UI sits in **`#app-shell`** — near-white polished silver (`#f7f8fa`) with subtle grain, inset padding, rounded border, soft shadow.
-- **Header chrome links** (quiet text, no cards/shadow/z-index): language (`localStorage` `frapper.lang`) · Reset all canvases · Logout (invalid Basic Auth re-fetch). Live in the header body and hide when the header is collapsed.
+- **Header chrome links** (borderless text links, all 68px wide; hover lifts, press sinks): left **language** (`localStorage` `frapper.lang`) · **⌘ Keys**, right **Reset** all canvases · **Logout** (invalid Basic Auth re-fetch). Live in the header body and hide when the header is collapsed. **⌘ Keys** shows a hover/focus popup listing every shortcut — keep it in sync when adding or changing a hotkey (hidden at ≤600px).
+- **Hotkeys** (macOS: all `⌘`, no `Ctrl` fallback, `⌘+Shift` and key repeat ignored; handled in one `keydown` listener in `index.html`): `⌘↵` run, `⌘I` add item, `⌘F` focus query, `⌘S` save dialog, `⌘E` collapse header, `⌘J` switch language, `⌘D` reset canvas, `⌘K` reset all canvases, `Esc` close dialog, `Shift+←/→` canvas, `Shift+↑/↓` mode. Avoid `⌘Q`/`⌘R`/`⌘L`/`⌘W`/`⌘T`: browsers keep them.
 - **Header theme** — muted dusty violet for PL (`#5e598a`), azure blue for EN (`#46769f`). Header + canvas share `--header-bg`.
 - Header is collapsible (`frapper.headerCollapsed`).
-- Brand: clickable `FRAPPER` → GitHub repo; hover shows phrase stats tooltip; version badge → `/docs` (Swagger, needs `FRAPPER_ENABLE_DOCS=true`). Subtitle + phrase stats via `GET /api/phrase/stats`.
-- Tab toolbar (right): **+ Item** (`Ctrl+I`), then dedupe, badges, card count.
+- Brand: clickable `FRAPPER` → GitHub repo; hover shows phrase stats tooltip; version badge → `/docs` (Swagger, needs `FRAPPER_ENABLE_DOCS=true`). Phrase stats via `GET /api/phrase/stats`.
+- Tab toolbar (right): **+ Item** (`⌘I`), then dedupe, badges, card count.
 
 #### Query modes
 
@@ -186,7 +187,7 @@ When language is PL, the Stories pill is visible but disabled (`is-disabled`); s
 | Side | Actions |
 |---|---|
 | Left | Clear tab · Collapse all · Expand all · Shuffle |
-| Right | **+ Item** (`Ctrl+I`) · Dedupe (“Keep unique cards”) · Badges modal · card count |
+| Right | **+ Item** (`⌘I`) · Dedupe (“Keep unique cards”) · Badges modal · card count |
 
 - **Dedupe** — phrases by id + construction tag; stories by id + tags (title fallback).
 - **Badges** — compact modal of unique construction/tags in the active canvas, with Copy.
@@ -197,7 +198,7 @@ When language is PL, the Stories pill is visible but disabled (`is-disabled`); s
 - Dense layout (tight padding, ~17px target / ~15px translate, short head→body gap).
 - Amber `<mark>` highlights from mask.
 - Language-specific tag badge colors (muted PL violet / EN blue); badges are visually quiet (small, light fill).
-- Header: collapse, `#id`, message date (click → Date mode), edit, delete.
+- Header: collapse, `#id`, message date (click → Date mode), edit, delete. A click anywhere else on the header (stories too) also toggles collapse (`bindCardHeadToggle`); buttons, links and text selection are excluded.
 - Construction tag button → Tag mode search.
 - **Edit** — FLIP morph to phrase edit modal; click words to toggle mask bits; `PATCH` or `POST /manual` for create.
 - **Delete** — confirm modal; `DELETE /api/phrase/{id}`.

@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-11-23
+
+Web UI polish: macOS shortcuts and a lighter header.
+
+### Added
+
+- **⌘ Keys** in the header: hover or focus opens a popup listing every keyboard shortcut (hidden on narrow screens)
+
+### Changed
+
+- All shortcuts use `⌘` instead of `Ctrl`. Shortcuts that macOS browsers reserve moved: language switch `⌘J` (was `Ctrl+Q`), reset all canvases `⌘K` (was `Ctrl+R`), reset canvas `⌘D` (was `Ctrl+L`). Unchanged letters: `⌘I` add item, `⌘F` focus query, `⌘E` collapse header, `⌘S` save dialog
+- Header links (language, Keys, Reset, Logout) are borderless, one size (68px), lift on hover and sink when pressed; language and Keys sit on the left, Reset and Logout on the right
+- The `FRAPPER` title is smaller (15px) and centered; the "phrase trainer" subtitle is removed, which saves a header line
+- Clicking anywhere on a card header (not only the arrow, and not only when collapsed) collapses or expands the card; its buttons, links and text selection keep working
+- Holding a shortcut no longer repeats it, and `⌘`+`Shift` combinations are left to the browser
+- The header no longer clips overflowing content (it sits above the canvas toolbar so popups are not cut off)
+
 ## [1.0.1] — 2026-10-05
 
 Bug-fix release from a full code review.
@@ -108,5 +125,6 @@ Initial release of Frapper.
 - UV workspace with locked dependencies (`pyproject.toml` / `uv.lock`)
 - DB `ensure_db` / `migrate_db.py`, fixture loader, `scripts/docker-logs.sh`
 
+[1.0.2]: https://github.com/romi477/frapper_app/releases/tag/v1.0.2
 [1.0.1]: https://github.com/romi477/frapper_app/releases/tag/v1.0.1
 [1.0.0]: https://github.com/romi477/frapper_app/releases/tag/v1.0.0
