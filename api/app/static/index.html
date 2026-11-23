@@ -153,13 +153,13 @@
   .header-chrome-left {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     justify-self: start;
   }
   .header-chrome-right {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     justify-self: end;
   }
   .chrome-link {
@@ -188,6 +188,12 @@
       background .15s ease,
       transform .15s ease,
       text-shadow .15s ease;
+  }
+  .chrome-link-icon {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
   }
   .chrome-link:hover {
     color: var(--theme);
@@ -260,11 +266,19 @@
     height: 10px;
   }
   .keys-hint:hover .keys-popup,
-  .keys-hint:focus-within .keys-popup {
+  .keys-hint:focus-within .keys-popup,
+  .keys-hint.is-open .keys-popup {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transform: translateY(0);
+  }
+  /* F1/Esc dismissal wins over hover and focus until the pointer leaves. */
+  .keys-hint.is-dismissed .keys-popup {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-2px);
   }
   .keys-popup h2 {
     margin: 0 0 6px;
@@ -1913,10 +1927,7 @@
       font-size: 11px;
       width: 52px;
     }
-    .header-chrome-left,
-    .header-chrome-right {
-      gap: 2px;
-    }
+    .chrome-link-icon { display: none; }
 
     .card.is-phrase-card .card-head:has(.head-right .tag-btn) {
       flex-wrap: wrap;
@@ -1948,7 +1959,7 @@
         <div class="header-chrome-left">
           <button type="button" class="chrome-link" id="lang-toggle-btn" title="Switch to English">PL → EN</button>
           <div class="keys-hint">
-            <button type="button" class="chrome-link" id="keys-btn" aria-describedby="keys-popup">⌘ Keys</button>
+            <button type="button" class="chrome-link" id="keys-btn" title="Keyboard shortcuts (F1)" aria-describedby="keys-popup" aria-expanded="false">⌘ Keys</button>
             <div class="keys-popup" id="keys-popup" role="tooltip">
               <h2>Actions</h2>
               <dl>
@@ -1960,6 +1971,7 @@
               </dl>
               <h2>View</h2>
               <dl>
+                <dt><kbd>F1</kbd></dt><dd>Show / hide this list</dd>
                 <dt><kbd>⌘</kbd><kbd>E</kbd></dt><dd>Collapse / expand header</dd>
                 <dt><kbd>⌘</kbd><kbd>J</kbd></dt><dd>Switch language</dd>
                 <dt><kbd>⌘</kbd><kbd>D</kbd></dt><dd>Reset this canvas</dd>
@@ -1984,8 +1996,8 @@
           </span>
         </div>
         <div class="header-chrome-right">
-          <button type="button" class="chrome-link chrome-link-danger" id="clear-btn" title="Reset all canvases (⌘K)">Reset</button>
-          <button type="button" class="chrome-link" id="logout-btn" title="Log out (clear Basic Auth session)">Logout</button>
+          <button type="button" class="chrome-link chrome-link-danger" id="clear-btn" title="Reset all canvases (⌘K)"><svg class="chrome-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+          <button type="button" class="chrome-link" id="logout-btn" title="Log out (clear Basic Auth session)"><svg class="chrome-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Logout</button>
         </div>
       </div>
       <div class="modes" id="modes">
@@ -5036,7 +5048,54 @@
 
   const APP_SHORTCUT_CODES = new Set(['KeyS', 'KeyF', 'KeyK', 'KeyD', 'KeyE', 'KeyJ', 'KeyI']);
 
+  // F1 pins the shortcuts popup open (hover/focus show it too); Esc or a click
+  // outside closes it again.
+  const keysHintEl = document.querySelector('.keys-hint');
+  const keysBtnEl = document.getElementById('keys-btn');
+
+  function isKeysPopupVisible() {
+    if (keysHintEl.classList.contains('is-dismissed')) return false;
+    return keysHintEl.classList.contains('is-open')
+      || keysHintEl.matches(':hover')
+      || keysHintEl.matches(':focus-within');
+  }
+
+  function setKeysPopupOpen(open) {
+    keysHintEl.classList.toggle('is-open', open);
+    keysHintEl.classList.toggle('is-dismissed', false);
+    if (!open) {
+      // Only needed while the pointer sits on the hint; mouseleave clears it.
+      if (keysHintEl.matches(':hover')) keysHintEl.classList.add('is-dismissed');
+      if (keysHintEl.contains(document.activeElement)) document.activeElement.blur();
+    }
+    keysBtnEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  keysHintEl.addEventListener('mouseleave', () => {
+    keysHintEl.classList.remove('is-dismissed');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (keysHintEl.classList.contains('is-open') && !keysHintEl.contains(e.target)) {
+      setKeysPopupOpen(false);
+    }
+  });
+
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (isHeaderCollapsed()) toggleHeaderCollapsed();
+      setKeysPopupOpen(!isKeysPopupVisible());
+      return;
+    }
+
+    if (e.key === 'Escape' && isKeysPopupVisible()) {
+      e.preventDefault();
+      setKeysPopupOpen(false);
+      return;
+    }
+
     if (e.key === 'Escape') {
       if (!deleteModalEl.hidden) {
         e.preventDefault();

@@ -11,12 +11,12 @@ Web UI polish: macOS shortcuts and a lighter header.
 
 ### Added
 
-- **⌘ Keys** in the header: hover or focus opens a popup listing every keyboard shortcut (hidden on narrow screens)
+- **⌘ Keys** in the header: hover or focus opens a popup listing every keyboard shortcut (hidden on narrow screens); `F1` pins it open (`Esc` or a click elsewhere closes it)
 
 ### Changed
 
 - All shortcuts use `⌘` instead of `Ctrl`. Shortcuts that macOS browsers reserve moved: language switch `⌘J` (was `Ctrl+Q`), reset all canvases `⌘K` (was `Ctrl+R`), reset canvas `⌘D` (was `Ctrl+L`). Unchanged letters: `⌘I` add item, `⌘F` focus query, `⌘E` collapse header, `⌘S` save dialog
-- Header links (language, Keys, Reset, Logout) are borderless, one size (68px), lift on hover and sink when pressed; language and Keys sit on the left, Reset and Logout on the right
+- Header links (language, Keys, Reset, Logout) are borderless, one size (68px), tightly spaced, and Reset/Logout get small icons, lift on hover and sink when pressed; language and Keys sit on the left, Reset and Logout on the right
 - The `FRAPPER` title is smaller (15px) and centered; the "phrase trainer" subtitle is removed, which saves a header line
 - Clicking anywhere on a card header (not only the arrow, and not only when collapsed) collapses or expands the card; its buttons, links and text selection keep working
 - Holding a shortcut no longer repeats it, and `⌘`+`Shift` combinations are left to the browser
